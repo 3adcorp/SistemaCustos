@@ -707,15 +707,11 @@ export const useStore = create<StoreState>((set, get) => ({
 
       if (docSnap.exists()) {
         const docData = docSnap.data();
-        if (docData.userId !== userId) {
-          set({ boloDia: null, loading: false });
-          return;
-        }
         set({
           boloDia: {
             id: data,
             data: docData.data?.toDate?.() || new Date(),
-            userId: docData.userId,
+            userId: docData.userId || userId,
             itens: docData.itens || [],
           },
           loading: false,
@@ -761,7 +757,6 @@ export const useStore = create<StoreState>((set, get) => ({
 
       const q = query(
         collection(db, 'pedidos'),
-        where('userId', '==', userId),
         where('criadoEm', '>=', Timestamp.fromDate(hoje))
       );
 
@@ -790,7 +785,6 @@ export const useStore = create<StoreState>((set, get) => ({
 
     const q = query(
       collection(db, 'pedidos'),
-      where('userId', '==', userId),
       where('criadoEm', '>=', Timestamp.fromDate(hoje))
     );
 
