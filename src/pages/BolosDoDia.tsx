@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useStore } from '../store/useStore';
-import { ItemBoloDia } from '../types';
+import { ItemBoloDia, Receita } from '../types';
+import { collection, getDocs } from 'firebase/firestore';
+import { db } from '../config/firebase';
 
 function formatarData(date: Date): string {
   return date.toLocaleDateString('pt-BR', {
@@ -24,10 +26,9 @@ export default function BolosDoDia() {
   const loading = useStore((s) => s.loading);
   const carregarBolosDoDia = useStore((s) => s.carregarBolosDoDia);
   const salvarBolosDoDia = useStore((s) => s.salvarBolosDoDia);
-  const receitas = useStore((s) => s.receitas);
-  const carregarReceitas = useStore((s) => s.carregarReceitas);
 
   const [itens, setItens] = useState<ItemBoloDia[]>([]);
+  const [todasReceitas, setTodasReceitas] = useState<Receita[]>([]);
   const [mostrarForm, setMostrarForm] = useState(false);
   const [novoNome, setNovoNome] = useState('');
   const [novoPreco, setNovoPreco] = useState('');
@@ -55,7 +56,16 @@ export default function BolosDoDia() {
   useEffect(() => {
     if (userId) {
       carregarBolosDoDia(dataString);
-      carregarReceitas();
+      // Carregar todas as receitas de todos os usuarios (compartilhado)
+      getDocs(collection(db, 'receitas')).then((snapshot) => {
+        const receitas: Receita[] = snapshot.docs.map((d) => ({
+          id: d.id,
+          ...d.data(),
+          createdAt: d.data().createdAt?.toDate?.() || new Date(),
+          updatedAt: d.data().updatedAt?.toDate?.() || new Date(),
+        })) as Receita[];
+        setTodasReceitas(receitas);
+      });
     }
   }, [userId, dataString]);
 
@@ -135,7 +145,7 @@ export default function BolosDoDia() {
     atualizarItens(novos);
   };
 
-  const bolosReceitas = receitas.filter(
+  const bolosReceitas = todasReceitas.filter(
     (r) => (r.tipo === 'bolo' || !r.tipo) && !itens.some((i) => i.receitaId === r.id)
   );
 

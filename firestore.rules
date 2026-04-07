@@ -1,35 +1,41 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Ingredientes
+    // Bolos do dia - compartilhado entre todos os atendentes
+    match /bolos_dia/{diaId} {
+      allow read, write: if true;
+    }
+
+    // Pedidos - compartilhado (n8n cria, frontend gerencia)
+    match /pedidos/{pedidoId} {
+      allow read, write: if true;
+    }
+
+    // Conversas - n8n gerencia estado
+    match /conversas/{conversaId} {
+      allow read, write: if true;
+    }
+
+    // Ingredientes - por usuario
     match /ingredientes/{ingredienteId} {
       allow read, write: if request.auth != null && request.auth.uid == resource.data.userId;
       allow create: if request.auth != null && request.auth.uid == request.resource.data.userId;
-      
-      // Subcoleção de histórico de ingredientes
+
       match /historico/{historicoId} {
-        // Permite leitura se o usuário está autenticado e o documento tem userId correspondente
-        // O código sempre filtra por userId na query, então isso é seguro
         allow read: if request.auth != null && resource.data.userId == request.auth.uid;
-        // Permite criação se o userId no documento corresponde ao usuário autenticado
         allow create: if request.auth != null && request.auth.uid == request.resource.data.userId;
-        // Histórico é imutável - não permite update/delete
       }
     }
-    
-    // Receitas
+
+    // Receitas - leitura para todos autenticados, escrita por dono
     match /receitas/{receitaId} {
-      allow read, write: if request.auth != null && request.auth.uid == resource.data.userId;
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == resource.data.userId;
       allow create: if request.auth != null && request.auth.uid == request.resource.data.userId;
-      
-      // Subcoleção de histórico de receitas
+
       match /historico/{historicoId} {
-        // Permite leitura se o usuário está autenticado e o documento tem userId correspondente
-        // O código sempre filtra por userId na query, então isso é seguro
         allow read: if request.auth != null && resource.data.userId == request.auth.uid;
-        // Permite criação se o userId no documento corresponde ao usuário autenticado
         allow create: if request.auth != null && request.auth.uid == request.resource.data.userId;
-        // Histórico é imutável - não permite update/delete
       }
     }
   }
