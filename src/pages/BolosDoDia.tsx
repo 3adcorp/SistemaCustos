@@ -12,7 +12,10 @@ function formatarData(date: Date): string {
 }
 
 function getDataString(date: Date): string {
-  return date.toISOString().split('T')[0];
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
 }
 
 export default function BolosDoDia() {
@@ -33,7 +36,21 @@ export default function BolosDoDia() {
   const hoje = new Date();
   const dataString = getDataString(hoje);
 
+  const pendingItensRef = useRef<ItemBoloDia[] | null>(null);
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const salvarAgora = useCallback(async (novosItens: ItemBoloDia[]) => {
+    if (!userId) return;
+    setSalvando(true);
+    await salvarBolosDoDia({
+      id: dataString,
+      data: hoje,
+      userId,
+      itens: novosItens,
+    });
+    pendingItensRef.current = null;
+    setSalvando(false);
+  }, [userId, dataString]);
 
   useEffect(() => {
     if (userId) {
@@ -48,22 +65,23 @@ export default function BolosDoDia() {
     }
   }, [boloDia]);
 
+  // Salvar ao desmontar (navegar para outra página)
+  useEffect(() => {
+    return () => {
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+      if (pendingItensRef.current) {
+        salvarAgora(pendingItensRef.current);
+      }
+    };
+  }, [salvarAgora]);
+
   const salvarDebounced = useCallback(
     (novosItens: ItemBoloDia[]) => {
+      pendingItensRef.current = novosItens;
       if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
-      saveTimeoutRef.current = setTimeout(async () => {
-        if (!userId) return;
-        setSalvando(true);
-        await salvarBolosDoDia({
-          id: dataString,
-          data: hoje,
-          userId,
-          itens: novosItens,
-        });
-        setSalvando(false);
-      }, 800);
+      saveTimeoutRef.current = setTimeout(() => salvarAgora(novosItens), 800);
     },
-    [userId, dataString]
+    [salvarAgora]
   );
 
   const atualizarItens = (novosItens: ItemBoloDia[]) => {
