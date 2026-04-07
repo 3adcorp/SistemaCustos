@@ -97,6 +97,25 @@ export default function Layout({ children }: LayoutProps) {
                 Sobremesas
               </Link>
             </div>
+            <div className="space-y-1 mt-2">
+              <p className="px-4 py-2 text-xs font-bold text-emerald-600 uppercase tracking-wider">
+                WhatsApp
+              </p>
+              <Link
+                to="/bolos-do-dia"
+                className={`flex items-center px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ml-2 ${isActive('/bolos-do-dia')}`}
+              >
+                <span className="mr-2 text-base">🎂</span>
+                Bolos do Dia
+              </Link>
+              <Link
+                to="/pedidos"
+                className={`flex items-center px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ml-2 ${isActive('/pedidos')}`}
+              >
+                <span className="mr-2 text-base">📋</span>
+                Pedidos
+              </Link>
+            </div>
           </nav>
 
           {/* Logout Button */}
@@ -176,6 +195,27 @@ export default function Layout({ children }: LayoutProps) {
                 >
                   <span className="mr-2 text-base">🍨</span>
                   Sobremesas
+                </Link>
+              </div>
+              <div className="space-y-1 mt-2">
+                <p className="px-4 py-2 text-xs font-bold text-emerald-600 uppercase tracking-wider">
+                  WhatsApp
+                </p>
+                <Link
+                  to="/bolos-do-dia"
+                  onClick={() => setSidebarOpen(false)}
+                  className={`flex items-center px-4 py-2.5 min-h-[48px] rounded-xl text-sm font-semibold transition-all duration-200 ml-2 ${isActive('/bolos-do-dia')}`}
+                >
+                  <span className="mr-2 text-base">🎂</span>
+                  Bolos do Dia
+                </Link>
+                <Link
+                  to="/pedidos"
+                  onClick={() => setSidebarOpen(false)}
+                  className={`flex items-center px-4 py-2.5 min-h-[48px] rounded-xl text-sm font-semibold transition-all duration-200 ml-2 ${isActive('/pedidos')}`}
+                >
+                  <span className="mr-2 text-base">📋</span>
+                  Pedidos
                 </Link>
               </div>
             </nav>

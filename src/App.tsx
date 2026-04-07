@@ -8,6 +8,8 @@ import Layout from './components/Layout';
 import Ingredientes from './pages/Ingredientes';
 import Receitas from './pages/Receitas';
 import Dashboard from './pages/Dashboard';
+import BolosDoDia from './pages/BolosDoDia';
+import Pedidos from './pages/Pedidos';
 
 function App() {
   const [user, loading] = useAuthState(auth);
@@ -42,6 +44,8 @@ function App() {
           <Route path="/ingredientes" element={<Ingredientes />} />
           <Route path="/receitas" element={<Navigate to="/receitas/bolos" replace />} />
           <Route path="/receitas/:tipo" element={<Receitas />} />
+          <Route path="/bolos-do-dia" element={<BolosDoDia />} />
+          <Route path="/pedidos" element={<Pedidos />} />
         </Routes>
       </Layout>
     </Router>

@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Ingrediente, Receita, HistoricoIngrediente, HistoricoReceita } from '../types';
+import { Ingrediente, Receita, HistoricoIngrediente, HistoricoReceita, BoloDia, ItemBoloDia, Pedido, StatusPedido } from '../types';
 import {
   collection,
   query,
@@ -10,7 +10,10 @@ import {
   updateDoc,
   deleteDoc,
   doc,
+  setDoc,
+  onSnapshot,
   Timestamp,
+  Unsubscribe,
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { calcularPrecoPorUnidade } from '../utils/calculos';
@@ -38,11 +41,25 @@ interface StoreState {
   buscarHistoricoIngrediente: (ingredienteId: string) => Promise<HistoricoIngrediente[]>;
   salvarHistoricoReceita: (receitaId: string, receita: Receita) => Promise<void>;
   buscarHistoricoReceita: (receitaId: string) => Promise<HistoricoReceita[]>;
+
+  // Bolos do Dia
+  boloDia: BoloDia | null;
+  carregarBolosDoDia: (data: string) => Promise<void>;
+  salvarBolosDoDia: (boloDia: BoloDia) => Promise<void>;
+
+  // Pedidos
+  pedidos: Pedido[];
+  carregarPedidosDoDia: () => Promise<void>;
+  subscribePedidos: () => Unsubscribe;
+  aprovarPedido: (pedidoId: string, telefone: string) => Promise<void>;
+  recusarPedido: (pedidoId: string, telefone: string, motivo: string) => Promise<void>;
 }
 
 export const useStore = create<StoreState>((set, get) => ({
   ingredientes: [],
   receitas: [],
+  boloDia: null,
+  pedidos: [],
   userId: null,
   loading: false,
   error: null,
@@ -674,6 +691,186 @@ export const useStore = create<StoreState>((set, get) => ({
         console.error('⚠️ Permissão negada. Verifique as regras do Firestore para a subcoleção historico');
       }
       return [];
+    }
+  },
+
+  // ========== BOLOS DO DIA ==========
+
+  carregarBolosDoDia: async (data: string) => {
+    const { userId } = get();
+    if (!userId) return;
+
+    set({ loading: true, error: null });
+    try {
+      const docRef = doc(db, 'bolos_dia', data);
+      const docSnap = await getDoc(docRef);
+
+      if (docSnap.exists()) {
+        const docData = docSnap.data();
+        if (docData.userId !== userId) {
+          set({ boloDia: null, loading: false });
+          return;
+        }
+        set({
+          boloDia: {
+            id: data,
+            data: docData.data?.toDate?.() || new Date(),
+            userId: docData.userId,
+            itens: docData.itens || [],
+          },
+          loading: false,
+        });
+      } else {
+        set({ boloDia: null, loading: false });
+      }
+    } catch (error: any) {
+      console.error('Erro ao carregar bolos do dia:', error);
+      set({ error: error.message, loading: false });
+    }
+  },
+
+  salvarBolosDoDia: async (boloDia: BoloDia) => {
+    const { userId } = get();
+    if (!userId) return;
+
+    try {
+      const docRef = doc(db, 'bolos_dia', boloDia.id);
+      await setDoc(docRef, {
+        data: Timestamp.fromDate(new Date(boloDia.id + 'T12:00:00')),
+        userId,
+        itens: boloDia.itens,
+      }, { merge: true });
+
+      set({ boloDia });
+    } catch (error: any) {
+      console.error('Erro ao salvar bolos do dia:', error);
+      set({ error: error.message });
+    }
+  },
+
+  // ========== PEDIDOS ==========
+
+  carregarPedidosDoDia: async () => {
+    const { userId } = get();
+    if (!userId) return;
+
+    set({ loading: true, error: null });
+    try {
+      const hoje = new Date();
+      hoje.setHours(0, 0, 0, 0);
+
+      const q = query(
+        collection(db, 'pedidos'),
+        where('userId', '==', userId),
+        where('criadoEm', '>=', Timestamp.fromDate(hoje))
+      );
+
+      const snapshot = await getDocs(q);
+      const pedidos: Pedido[] = snapshot.docs.map((d) => ({
+        id: d.id,
+        ...d.data(),
+        criadoEm: d.data().criadoEm?.toDate?.() || new Date(),
+        atualizadoEm: d.data().atualizadoEm?.toDate?.() || new Date(),
+      })) as Pedido[];
+
+      pedidos.sort((a, b) => b.criadoEm.getTime() - a.criadoEm.getTime());
+      set({ pedidos, loading: false });
+    } catch (error: any) {
+      console.error('Erro ao carregar pedidos:', error);
+      set({ error: error.message, loading: false });
+    }
+  },
+
+  subscribePedidos: () => {
+    const { userId } = get();
+    if (!userId) return () => {};
+
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+
+    const q = query(
+      collection(db, 'pedidos'),
+      where('userId', '==', userId),
+      where('criadoEm', '>=', Timestamp.fromDate(hoje))
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const pedidos: Pedido[] = snapshot.docs.map((d) => ({
+        id: d.id,
+        ...d.data(),
+        criadoEm: d.data().criadoEm?.toDate?.() || new Date(),
+        atualizadoEm: d.data().atualizadoEm?.toDate?.() || new Date(),
+      })) as Pedido[];
+
+      pedidos.sort((a, b) => b.criadoEm.getTime() - a.criadoEm.getTime());
+      set({ pedidos });
+    });
+
+    return unsubscribe;
+  },
+
+  aprovarPedido: async (pedidoId: string, telefone: string) => {
+    try {
+      const docRef = doc(db, 'pedidos', pedidoId);
+      await updateDoc(docRef, {
+        status: 'aprovado' as StatusPedido,
+        atualizadoEm: Timestamp.now(),
+      });
+
+      // Notificar cliente via n8n webhook
+      try {
+        await fetch('https://n8n-ihvn.srv1564124.hstgr.cloud/webhook/pedido-status', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pedidoId, status: 'aprovado', telefone }),
+        });
+      } catch (e) {
+        console.error('Erro ao notificar webhook:', e);
+      }
+
+      // Atualizar estado local
+      const { pedidos } = get();
+      set({
+        pedidos: pedidos.map((p) =>
+          p.id === pedidoId ? { ...p, status: 'aprovado' as StatusPedido, atualizadoEm: new Date() } : p
+        ),
+      });
+    } catch (error: any) {
+      console.error('Erro ao aprovar pedido:', error);
+      set({ error: error.message });
+    }
+  },
+
+  recusarPedido: async (pedidoId: string, telefone: string, motivo: string) => {
+    try {
+      const docRef = doc(db, 'pedidos', pedidoId);
+      await updateDoc(docRef, {
+        status: 'recusado' as StatusPedido,
+        motivoRecusa: motivo,
+        atualizadoEm: Timestamp.now(),
+      });
+
+      // Notificar cliente via n8n webhook
+      try {
+        await fetch('https://n8n-ihvn.srv1564124.hstgr.cloud/webhook/pedido-status', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pedidoId, status: 'recusado', telefone, motivoRecusa: motivo }),
+        });
+      } catch (e) {
+        console.error('Erro ao notificar webhook:', e);
+      }
+
+      // Atualizar estado local
+      const { pedidos } = get();
+      set({
+        pedidos: pedidos.map((p) =>
+          p.id === pedidoId ? { ...p, status: 'recusado' as StatusPedido, motivoRecusa: motivo, atualizadoEm: new Date() } : p
+        ),
+      });
+    } catch (error: any) {
+      console.error('Erro ao recusar pedido:', error);
+      set({ error: error.message });
     }
   },
 }));

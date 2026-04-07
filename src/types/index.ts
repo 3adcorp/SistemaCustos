@@ -72,3 +72,39 @@ export interface HistoricoReceita {
   userId: string;
 }
 
+// === WhatsApp Pedidos ===
+
+export interface ItemBoloDia {
+  nome: string;
+  preco: number;
+  quantidade: number;
+  receitaId?: string;
+}
+
+export interface BoloDia {
+  id: string; // "YYYY-MM-DD"
+  data: Date;
+  userId: string;
+  itens: ItemBoloDia[];
+}
+
+export type StatusPedido = 'pendente' | 'aprovado' | 'recusado';
+
+export interface Pedido {
+  id: string;
+  telefone: string;
+  nomeCliente: string;
+  whatsappNome: string;
+  bolo: string;
+  quantidade: number;
+  preco: number;
+  total: number;
+  endereco: string;
+  comprovanteUrl: string;
+  status: StatusPedido;
+  motivoRecusa?: string;
+  userId: string;
+  criadoEm: Date;
+  atualizadoEm: Date;
+}
+
