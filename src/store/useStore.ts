@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Ingrediente, Receita, HistoricoIngrediente, HistoricoReceita, BoloDia, Pedido, StatusPedido } from '../types';
+import { Ingrediente, Receita, HistoricoIngrediente, HistoricoReceita, BoloDia, Pedido, StatusPedido, MovimentacaoEstoque } from '../types';
 import {
   collection,
   query,
@@ -713,6 +713,7 @@ export const useStore = create<StoreState>((set, get) => ({
             data: docData.data?.toDate?.() || new Date(),
             userId: docData.userId || userId,
             itens: docData.itens || [],
+            historico: docData.historico || [],
           },
           loading: false,
         });
@@ -735,6 +736,7 @@ export const useStore = create<StoreState>((set, get) => ({
         data: Timestamp.fromDate(new Date(boloDia.id + 'T12:00:00')),
         userId,
         itens: boloDia.itens,
+        historico: boloDia.historico || [],
       }, { merge: true });
 
       set({ boloDia });
@@ -822,8 +824,32 @@ export const useStore = create<StoreState>((set, get) => ({
         console.error('Erro ao notificar webhook:', e);
       }
 
+      // Dar baixa no estoque
+      const { pedidos, boloDia } = get();
+      const pedido = pedidos.find((p) => p.id === pedidoId);
+      if (pedido && boloDia) {
+        const novosItens = boloDia.itens.map((item) => {
+          if (item.nome.toLowerCase() === pedido.bolo.toLowerCase()) {
+            return { ...item, quantidade: Math.max(0, item.quantidade - pedido.quantidade) };
+          }
+          return item;
+        });
+        const novaMovimentacao: MovimentacaoEstoque = {
+          tipo: 'saida_pedido',
+          bolo: pedido.bolo,
+          quantidade: pedido.quantidade,
+          horario: new Date().toISOString(),
+          pedidoId,
+        };
+        const novoBoloDia = {
+          ...boloDia,
+          itens: novosItens,
+          historico: [...(boloDia.historico || []), novaMovimentacao],
+        };
+        await get().salvarBolosDoDia(novoBoloDia);
+      }
+
       // Atualizar estado local
-      const { pedidos } = get();
       set({
         pedidos: pedidos.map((p) =>
           p.id === pedidoId ? { ...p, status: 'aprovado' as StatusPedido, atualizadoEm: new Date() } : p

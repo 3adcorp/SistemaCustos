@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useStore } from '../store/useStore';
-import { ItemBoloDia, Receita } from '../types';
+import { ItemBoloDia, Receita, MovimentacaoEstoque } from '../types';
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../config/firebase';
 
@@ -28,8 +28,10 @@ export default function BolosDoDia() {
   const salvarBolosDoDia = useStore((s) => s.salvarBolosDoDia);
 
   const [itens, setItens] = useState<ItemBoloDia[]>([]);
+  const [historico, setHistorico] = useState<MovimentacaoEstoque[]>([]);
   const [todasReceitas, setTodasReceitas] = useState<Receita[]>([]);
   const [mostrarForm, setMostrarForm] = useState(false);
+  const [mostrarHistorico, setMostrarHistorico] = useState(false);
   const [novoNome, setNovoNome] = useState('');
   const [novoPreco, setNovoPreco] = useState('');
   const [salvando, setSalvando] = useState(false);
@@ -40,6 +42,8 @@ export default function BolosDoDia() {
   const pendingItensRef = useRef<ItemBoloDia[] | null>(null);
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const historicoRef = useRef<MovimentacaoEstoque[]>([]);
+
   const salvarAgora = useCallback(async (novosItens: ItemBoloDia[]) => {
     if (!userId) return;
     setSalvando(true);
@@ -48,6 +52,7 @@ export default function BolosDoDia() {
       data: hoje,
       userId,
       itens: novosItens,
+      historico: historicoRef.current,
     });
     pendingItensRef.current = null;
     setSalvando(false);
@@ -72,6 +77,8 @@ export default function BolosDoDia() {
   useEffect(() => {
     if (boloDia) {
       setItens(boloDia.itens);
+      setHistorico(boloDia.historico || []);
+      historicoRef.current = boloDia.historico || [];
     }
   }, [boloDia]);
 
@@ -94,6 +101,12 @@ export default function BolosDoDia() {
     [salvarAgora]
   );
 
+  const registrarMovimentacao = (mov: MovimentacaoEstoque) => {
+    const novoHist = [...historicoRef.current, mov];
+    historicoRef.current = novoHist;
+    setHistorico(novoHist);
+  };
+
   const atualizarItens = (novosItens: ItemBoloDia[]) => {
     setItens(novosItens);
     salvarDebounced(novosItens);
@@ -101,10 +114,17 @@ export default function BolosDoDia() {
 
   const alterarQuantidade = (index: number, delta: number) => {
     const novos = [...itens];
-    novos[index] = {
-      ...novos[index],
-      quantidade: Math.max(0, novos[index].quantidade + delta),
-    };
+    const novaQtd = Math.max(0, novos[index].quantidade + delta);
+    const mudou = novaQtd !== novos[index].quantidade;
+    novos[index] = { ...novos[index], quantidade: novaQtd };
+    if (mudou) {
+      registrarMovimentacao({
+        tipo: delta > 0 ? 'entrada' : 'saida_manual',
+        bolo: novos[index].nome,
+        quantidade: Math.abs(delta),
+        horario: new Date().toISOString(),
+      });
+    }
     atualizarItens(novos);
   };
 
@@ -121,11 +141,13 @@ export default function BolosDoDia() {
 
   const adicionarItem = () => {
     if (!novoNome.trim() || !novoPreco) return;
+    const nome = novoNome.trim();
     const novo: ItemBoloDia = {
-      nome: novoNome.trim(),
+      nome,
       preco: parseFloat(novoPreco),
       quantidade: 1,
     };
+    registrarMovimentacao({ tipo: 'entrada', bolo: nome, quantidade: 1, horario: new Date().toISOString() });
     const novos = [...itens, novo];
     atualizarItens(novos);
     setNovoNome('');
@@ -141,6 +163,7 @@ export default function BolosDoDia() {
       quantidade: 1,
       receitaId: receita.id,
     };
+    registrarMovimentacao({ tipo: 'entrada', bolo: receita.nome, quantidade: 1, horario: new Date().toISOString() });
     const novos = [...itens, novo];
     atualizarItens(novos);
   };
@@ -325,6 +348,58 @@ export default function BolosDoDia() {
           >
             + Adicionar Sabor Personalizado
           </button>
+        )}
+      </div>
+
+      {/* Historico de Movimentacoes */}
+      <div className="mt-8">
+        <button
+          onClick={() => setMostrarHistorico(!mostrarHistorico)}
+          className="flex items-center gap-2 text-sm font-semibold text-gray-500 hover:text-rose-600 transition-colors"
+        >
+          <span>{mostrarHistorico ? '▼' : '▶'}</span>
+          Historico de Movimentacoes ({historico.length})
+        </button>
+
+        {mostrarHistorico && (
+          <div className="mt-3 space-y-2">
+            {historico.length === 0 ? (
+              <p className="text-sm text-gray-400 py-4 text-center">Nenhuma movimentacao registrada hoje</p>
+            ) : (
+              [...historico].reverse().map((mov, i) => {
+                const hora = new Date(mov.horario).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+                const config = {
+                  entrada: { icon: '+', bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700', label: 'Entrada' },
+                  saida_manual: { icon: '-', bg: 'bg-orange-50', border: 'border-orange-200', text: 'text-orange-700', label: 'Saida Manual' },
+                  saida_pedido: { icon: '📋', bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-700', label: 'Pedido' },
+                }[mov.tipo] || { icon: '?', bg: 'bg-gray-50', border: 'border-gray-200', text: 'text-gray-700', label: mov.tipo };
+
+                return (
+                  <div
+                    key={i}
+                    className={`flex items-center gap-3 px-3 py-2 rounded-lg border ${config.bg} ${config.border}`}
+                  >
+                    <span className={`text-sm font-bold ${config.text} w-6 text-center`}>{config.icon}</span>
+                    <div className="flex-1 min-w-0">
+                      <span className="text-sm font-medium text-gray-800">{mov.bolo}</span>
+                      <span className={`ml-2 text-xs font-semibold ${config.text}`}>
+                        {mov.tipo === 'entrada' ? '+' : '-'}{mov.quantidade} un
+                      </span>
+                      {mov.pedidoId && (
+                        <span className="ml-2 text-[10px] text-gray-400">Pedido #{mov.pedidoId.slice(-6)}</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${config.bg} ${config.text}`}>
+                        {config.label}
+                      </span>
+                      <span className="text-xs text-gray-400">{hora}</span>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
         )}
       </div>
     </div>

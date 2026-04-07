@@ -86,6 +86,18 @@ export interface BoloDia {
   data: Date;
   userId: string;
   itens: ItemBoloDia[];
+  historico: MovimentacaoEstoque[];
+}
+
+export type TipoMovimentacao = 'entrada' | 'saida_manual' | 'saida_pedido';
+
+export interface MovimentacaoEstoque {
+  tipo: TipoMovimentacao;
+  bolo: string;
+  quantidade: number;
+  horario: string; // ISO string
+  usuario?: string;
+  pedidoId?: string;
 }
 
 export type StatusPedido = 'pendente' | 'aprovado' | 'recusado';
