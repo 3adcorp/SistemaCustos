@@ -825,28 +825,48 @@ export const useStore = create<StoreState>((set, get) => ({
       }
 
       // Dar baixa no estoque
-      const { pedidos, boloDia } = get();
+      const { pedidos } = get();
       const pedido = pedidos.find((p) => p.id === pedidoId);
-      if (pedido && boloDia) {
-        const novosItens = boloDia.itens.map((item) => {
-          if (item.nome.toLowerCase() === pedido.bolo.toLowerCase()) {
-            return { ...item, quantidade: Math.max(0, item.quantidade - pedido.quantidade) };
+      if (pedido) {
+        // Carregar bolos do dia atual (pode não estar carregado se atendente está na página Pedidos)
+        const hoje = new Date();
+        const dataStr = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(hoje.getDate()).padStart(2, '0')}`;
+        const boloRef = doc(db, 'bolos_dia', dataStr);
+        const boloSnap = await getDoc(boloRef);
+
+        if (boloSnap.exists()) {
+          const boloData = boloSnap.data();
+          const itensAtuais = boloData.itens || [];
+          const historicoAtual = boloData.historico || [];
+
+          const novosItens = itensAtuais.map((item: any) => {
+            if (item.nome.toLowerCase().includes(pedido.bolo.toLowerCase()) ||
+                pedido.bolo.toLowerCase().includes(item.nome.toLowerCase())) {
+              return { ...item, quantidade: Math.max(0, item.quantidade - pedido.quantidade) };
+            }
+            return item;
+          });
+
+          const novaMovimentacao: MovimentacaoEstoque = {
+            tipo: 'saida_pedido',
+            bolo: pedido.bolo,
+            quantidade: pedido.quantidade,
+            horario: new Date().toISOString(),
+            pedidoId,
+          };
+
+          await setDoc(boloRef, {
+            ...boloData,
+            itens: novosItens,
+            historico: [...historicoAtual, novaMovimentacao],
+          }, { merge: true });
+
+          // Atualizar estado local se boloDia está carregado
+          const { boloDia } = get();
+          if (boloDia && boloDia.id === dataStr) {
+            set({ boloDia: { ...boloDia, itens: novosItens, historico: [...historicoAtual, novaMovimentacao] } });
           }
-          return item;
-        });
-        const novaMovimentacao: MovimentacaoEstoque = {
-          tipo: 'saida_pedido',
-          bolo: pedido.bolo,
-          quantidade: pedido.quantidade,
-          horario: new Date().toISOString(),
-          pedidoId,
-        };
-        const novoBoloDia = {
-          ...boloDia,
-          itens: novosItens,
-          historico: [...(boloDia.historico || []), novaMovimentacao],
-        };
-        await get().salvarBolosDoDia(novoBoloDia);
+        }
       }
 
       // Atualizar estado local
