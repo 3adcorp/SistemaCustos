@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useStore } from '../store/useStore';
-import { ItemBoloDia, BoloDia } from '../types';
+import { ItemBoloDia } from '../types';
 
 function formatarData(date: Date): string {
   return date.toLocaleDateString('pt-BR', {
@@ -9,10 +9,6 @@ function formatarData(date: Date): string {
     month: 'long',
     year: 'numeric',
   });
-}
-
-function formatarMoeda(valor: number): string {
-  return valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
 function getDataString(date: Date): string {

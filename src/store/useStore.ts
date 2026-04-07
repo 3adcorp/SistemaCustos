@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Ingrediente, Receita, HistoricoIngrediente, HistoricoReceita, BoloDia, ItemBoloDia, Pedido, StatusPedido } from '../types';
+import { Ingrediente, Receita, HistoricoIngrediente, HistoricoReceita, BoloDia, Pedido, StatusPedido } from '../types';
 import {
   collection,
   query,
