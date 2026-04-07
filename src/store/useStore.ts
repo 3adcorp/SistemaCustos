@@ -824,11 +824,10 @@ export const useStore = create<StoreState>((set, get) => ({
         console.error('Erro ao notificar webhook:', e);
       }
 
-      // Dar baixa no estoque
+      // Dar baixa no estoque para cada item do pedido
       const { pedidos } = get();
       const pedido = pedidos.find((p) => p.id === pedidoId);
       if (pedido) {
-        // Carregar bolos do dia atual (pode não estar carregado se atendente está na página Pedidos)
         const hoje = new Date();
         const dataStr = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(hoje.getDate()).padStart(2, '0')}`;
         const boloRef = doc(db, 'bolos_dia', dataStr);
@@ -836,35 +835,42 @@ export const useStore = create<StoreState>((set, get) => ({
 
         if (boloSnap.exists()) {
           const boloData = boloSnap.data();
-          const itensAtuais = boloData.itens || [];
+          let itensEstoque = boloData.itens || [];
           const historicoAtual = boloData.historico || [];
+          const novasMovimentacoes: MovimentacaoEstoque[] = [];
 
-          const novosItens = itensAtuais.map((item: any) => {
-            if (item.nome.toLowerCase().includes(pedido.bolo.toLowerCase()) ||
-                pedido.bolo.toLowerCase().includes(item.nome.toLowerCase())) {
-              return { ...item, quantidade: Math.max(0, item.quantidade - pedido.quantidade) };
-            }
-            return item;
-          });
+          // Itens do pedido (suporta array ou campo legado)
+          const itensPedido = pedido.itens && pedido.itens.length > 0
+            ? pedido.itens
+            : [{ nome: pedido.bolo || '', quantidade: pedido.quantidade || 1, preco: pedido.preco || 0 }];
 
-          const novaMovimentacao: MovimentacaoEstoque = {
-            tipo: 'saida_pedido',
-            bolo: pedido.bolo,
-            quantidade: pedido.quantidade,
-            horario: new Date().toISOString(),
-            pedidoId,
-          };
+          for (const itemPedido of itensPedido) {
+            if (!itemPedido.nome) continue;
+            itensEstoque = itensEstoque.map((item: any) => {
+              if (item.nome.toLowerCase().includes(itemPedido.nome.toLowerCase()) ||
+                  itemPedido.nome.toLowerCase().includes(item.nome.toLowerCase())) {
+                return { ...item, quantidade: Math.max(0, item.quantidade - itemPedido.quantidade) };
+              }
+              return item;
+            });
+            novasMovimentacoes.push({
+              tipo: 'saida_pedido',
+              bolo: itemPedido.nome,
+              quantidade: itemPedido.quantidade,
+              horario: new Date().toISOString(),
+              pedidoId,
+            });
+          }
 
           await setDoc(boloRef, {
             ...boloData,
-            itens: novosItens,
-            historico: [...historicoAtual, novaMovimentacao],
+            itens: itensEstoque,
+            historico: [...historicoAtual, ...novasMovimentacoes],
           }, { merge: true });
 
-          // Atualizar estado local se boloDia está carregado
           const { boloDia } = get();
           if (boloDia && boloDia.id === dataStr) {
-            set({ boloDia: { ...boloDia, itens: novosItens, historico: [...historicoAtual, novaMovimentacao] } });
+            set({ boloDia: { ...boloDia, itens: itensEstoque, historico: [...historicoAtual, ...novasMovimentacoes] } });
           }
         }
       }

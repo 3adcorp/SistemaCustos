@@ -146,23 +146,36 @@ export default function Pedidos() {
                     </span>
                   </div>
 
-                  {/* Detalhes */}
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
-                    <div>
-                      <p className="text-[10px] text-gray-400 uppercase font-bold">Bolo</p>
-                      <p className="text-sm font-medium text-gray-800">{pedido.bolo}</p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] text-gray-400 uppercase font-bold">Qtd</p>
-                      <p className="text-sm font-medium text-gray-800">{pedido.quantidade}</p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] text-gray-400 uppercase font-bold">Preco Unit.</p>
-                      <p className="text-sm font-medium text-gray-800">{formatarMoeda(pedido.preco)}</p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] text-gray-400 uppercase font-bold">Total</p>
-                      <p className="text-sm font-bold text-emerald-700">{formatarMoeda(pedido.total)}</p>
+                  {/* Itens do pedido */}
+                  <div className="mb-3">
+                    <p className="text-[10px] text-gray-400 uppercase font-bold mb-1">Itens</p>
+                    <div className="bg-gray-50 rounded-lg overflow-hidden">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="text-[10px] text-gray-400 uppercase border-b border-gray-200">
+                            <th className="text-left py-1.5 px-3 font-bold">Bolo</th>
+                            <th className="text-center py-1.5 px-2 font-bold">Qtd</th>
+                            <th className="text-right py-1.5 px-2 font-bold">Unit.</th>
+                            <th className="text-right py-1.5 px-3 font-bold">Subtotal</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(pedido.itens && pedido.itens.length > 0 ? pedido.itens : [{ nome: pedido.bolo || '?', quantidade: pedido.quantidade || 1, preco: pedido.preco || 0 }]).map((item, idx) => (
+                            <tr key={idx} className="border-b border-gray-100 last:border-0">
+                              <td className="py-1.5 px-3 font-medium text-gray-800">{item.nome}</td>
+                              <td className="py-1.5 px-2 text-center text-gray-600">{item.quantidade}</td>
+                              <td className="py-1.5 px-2 text-right text-gray-600">{formatarMoeda(item.preco)}</td>
+                              <td className="py-1.5 px-3 text-right font-medium text-gray-800">{formatarMoeda(item.preco * item.quantidade)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                        <tfoot>
+                          <tr className="bg-emerald-50">
+                            <td colSpan={3} className="py-1.5 px-3 text-right font-bold text-gray-600 text-xs">Total</td>
+                            <td className="py-1.5 px-3 text-right font-bold text-emerald-700">{formatarMoeda(pedido.total)}</td>
+                          </tr>
+                        </tfoot>
+                      </table>
                     </div>
                   </div>
 

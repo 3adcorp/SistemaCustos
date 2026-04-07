@@ -102,14 +102,22 @@ export interface MovimentacaoEstoque {
 
 export type StatusPedido = 'pendente' | 'aprovado' | 'recusado';
 
+export interface ItemPedido {
+  nome: string;
+  quantidade: number;
+  preco: number;
+}
+
 export interface Pedido {
   id: string;
   telefone: string;
   nomeCliente: string;
   whatsappNome: string;
-  bolo: string;
-  quantidade: number;
-  preco: number;
+  itens: ItemPedido[];
+  // Campos legados (compatibilidade com pedidos antigos)
+  bolo?: string;
+  quantidade?: number;
+  preco?: number;
   total: number;
   endereco: string;
   comprovanteUrl: string;
