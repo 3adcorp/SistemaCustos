@@ -16,6 +16,11 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
+    // Clientes - dados persistentes por telefone
+    match /clientes/{clienteId} {
+      allow read, write: if true;
+    }
+
     // Ingredientes - por usuario
     match /ingredientes/{ingredienteId} {
       allow read, write: if request.auth != null && request.auth.uid == resource.data.userId;
