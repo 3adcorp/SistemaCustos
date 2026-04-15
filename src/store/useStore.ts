@@ -814,18 +814,28 @@ export const useStore = create<StoreState>((set, get) => ({
       });
 
       // Notificar cliente via n8n webhook
+      const { pedidos } = get();
+      const pedidoNotif = pedidos.find((p) => p.id === pedidoId);
+      const itensNotif = pedidoNotif?.itens && pedidoNotif.itens.length > 0
+        ? pedidoNotif.itens
+        : [{ nome: pedidoNotif?.bolo || '', quantidade: pedidoNotif?.quantidade || 1, preco: pedidoNotif?.preco || 0 }];
       try {
         await fetch('https://n8n-ihvn.srv1564124.hstgr.cloud/webhook/pedido-status', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ pedidoId, status: 'aprovado', telefone }),
+          body: JSON.stringify({
+            pedidoId,
+            status: 'aprovado',
+            telefone,
+            instanceName: (pedidoNotif as any)?.instanceName || 'TESTE',
+            itensJson: JSON.stringify(itensNotif.map((i: any) => ({ bolo: i.nome, quantidade: i.quantidade, preco: i.preco }))),
+          }),
         });
       } catch (e) {
         console.error('Erro ao notificar webhook:', e);
       }
 
       // Dar baixa no estoque para cada item do pedido
-      const { pedidos } = get();
       const pedido = pedidos.find((p) => p.id === pedidoId);
       if (pedido) {
         const hoje = new Date();
@@ -897,11 +907,19 @@ export const useStore = create<StoreState>((set, get) => ({
       });
 
       // Notificar cliente via n8n webhook
+      const { pedidos: pedidosRecusa } = get();
+      const pedidoRecusa = pedidosRecusa.find((p) => p.id === pedidoId);
       try {
         await fetch('https://n8n-ihvn.srv1564124.hstgr.cloud/webhook/pedido-status', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ pedidoId, status: 'recusado', telefone, motivoRecusa: motivo }),
+          body: JSON.stringify({
+            pedidoId,
+            status: 'recusado',
+            telefone,
+            motivoRecusa: motivo,
+            instanceName: (pedidoRecusa as any)?.instanceName || 'TESTE',
+          }),
         });
       } catch (e) {
         console.error('Erro ao notificar webhook:', e);
